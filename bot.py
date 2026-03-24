@@ -9,8 +9,8 @@ from pyrogram import Client, filters
 # ----------------- الإعدادات ----------------- #
 
 API_ID = 34257542
-API_HASH = "YOUR_API_HASH"
-BOT_TOKEN = "YOUR_BOT_TOKEN"
+API_HASH = "614a1b5c5b712ac6de5530d5c571c42a"
+BOT_TOKEN = "8618854908:AAE_vNB2Skzqu_1wKCEOZRYQqwjH_oZOWjU"
 ADMIN_ID = 1486879970
 
 app = Client("countdown_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
@@ -168,7 +168,7 @@ async def main():
     # الانتظار حتى يتم إغلاق البوت يدوياً
     await asyncio.Event().wait()
 
-if name == "__main__":
+if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
