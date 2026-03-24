@@ -158,6 +158,6 @@ async def delete_counter(client, message):
 
 # ----------------- تشغيل ----------------- #
 
-if name == "__main__":
+if __name__ == "__main__":
     scheduler.start()
     app.run()
