@@ -137,7 +137,7 @@ reply(f"✅ تم ضبط عداد لـ ({content}) في وقت {target_time.strft
         interval_mins = parse_interval(text)
 
         if not interval_mins:
-            return await message.reply("❌ لم أفهم المدة. جرب: (كل 10 دقائق) أو (كل ساعة)")
+        return await message.reply("❌ لم أفهم المدة. جرب: (كل 10 دقائق) أو (كل ساعة)")
 
         global task_counter
         task_counter += 1
