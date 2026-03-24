@@ -124,7 +124,6 @@ async def handle_message(client, message: Message):
         }
         await message.reply(f"✅ تم ضبط عداد لـ ({content}) في وقت {target_time.
 
-> Faisal:
 strftime('%Y-%m-%d %H:%M')}\n\n**متى تبغى أرسل لك تنبيه؟**\n(مثلاً: كل 5 دقائق، كل ساعة، كل نص ساعة)")
 
     # الحالة 2: استقبال الفاصل الزمني (مثلاً: كل خمس دقائق)
