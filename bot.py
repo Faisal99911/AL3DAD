@@ -87,7 +87,10 @@ async def send_reminder(chat_id, task_id):
     if "انتهى" in remaining:
         await app.send_message(chat_id, f"🚨 انتهى الوقت لـ: {task['content']}")
         task["active"] = False
-        scheduler.remove_job(str(task_id))
+        try:
+            scheduler.remove_job(str(task_id))
+        except:
+            pass
         return
 
     await app.send_message(chat_id, f"🔔 تنبيه لـ: {task['content']}\n⏳ المتبقي: {remaining}")
@@ -106,7 +109,7 @@ async def handle_message(client, message: Message):
     if text == "ج":
         return await message.reply("هلا")
 
-    # الحالة 1: استقبال أمر العداد الجديد (مثلاً: عداد مكالمة بعد ساعة)
+    # الحالة 1: استقبال أمر العداد الجديد
     if text.startswith("عداد"):
         parts = text.split(" ", 2)
         if len(parts) < 3:
@@ -126,18 +129,16 @@ async def handle_message(client, message: Message):
             "target": target_time,
             "chat_id": chat_id
         }
-        await message
 
+await message.reply(f"✅ تم ضبط عداد لـ ({content}) في وقت {target_time.strftime('%Y-%m-%d %H:%M')}\n\n**متى تبغى أرسل لك تنبيه؟**\n(مثلاً: كل 5 دقائق، كل ساعة، كل نص ساعة)")
 
-reply(f"✅ تم ضبط عداد لـ ({content}) في وقت {target_time.strftime('%Y-%m-%d %H:%M')}\n\n**متى تبغى أرسل لك تنبيه؟**\n(مثلاً: كل 5 دقائق، كل ساعة، كل نص ساعة)")
-
-    # الحالة 2: استقبال الفاصل الزمني (مثلاً: كل خمس دقائق)
-        elif user_id in user_states and user_states[user_id]["step"] == "waiting_interval":
+    # الحالة 2: استقبال الفاصل الزمني (الإزاحة الصحيحة هنا)
+    elif user_id in user_states and user_states[user_id]["step"] == "waiting_interval":
         state = user_states[user_id]
         interval_mins = parse_interval(text)
 
         if not interval_mins:
-        return await message.reply("❌ لم أفهم المدة. جرب: (كل 10 دقائق) أو (كل ساعة)")
+            return await message.reply("❌ لم أفهم المدة. جرب: (كل 10 دقائق) أو (كل ساعة)")
 
         global task_counter
         task_counter += 1
