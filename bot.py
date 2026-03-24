@@ -126,7 +126,7 @@ async def handle_message(client, message: Message):
             "target": target_time,
             "chat_id": chat_id
         }
-        await message.
+        await message
 
 
 reply(f"✅ تم ضبط عداد لـ ({content}) في وقت {target_time.strftime('%Y-%m-%d %H:%M')}\n\n**متى تبغى أرسل لك تنبيه؟**\n(مثلاً: كل 5 دقائق، كل ساعة، كل نص ساعة)")
