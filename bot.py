@@ -1,4 +1,3 @@
-> Faisal:
 import asyncio
 import re
 from datetime import datetime, timedelta
