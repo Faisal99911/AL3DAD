@@ -1,3 +1,4 @@
+> Faisal:
 import asyncio
 import re
 from datetime import datetime, timedelta
@@ -102,6 +103,10 @@ async def handle_message(client, message: Message):
     user_id = message.from_user.id
     chat_id = message.chat.id
 
+    # أمر التجربة السريع
+    if text == "ج":
+        return await message.reply("هلا")
+
     # الحالة 1: استقبال أمر العداد الجديد (مثلاً: عداد مكالمة بعد ساعة)
     if text.startswith("عداد"):
         parts = text.split(" ", 2)
@@ -122,9 +127,10 @@ async def handle_message(client, message: Message):
             "target": target_time,
             "chat_id": chat_id
         }
-        await message.reply(f"✅ تم ضبط عداد لـ ({content}) في وقت {target_time.
+        await message.
 
-strftime('%Y-%m-%d %H:%M')}\n\n**متى تبغى أرسل لك تنبيه؟**\n(مثلاً: كل 5 دقائق، كل ساعة، كل نص ساعة)")
+> Faisal:
+reply(f"✅ تم ضبط عداد لـ ({content}) في وقت {target_time.strftime('%Y-%m-%d %H:%M')}\n\n**متى تبغى أرسل لك تنبيه؟**\n(مثلاً: كل 5 دقائق، كل ساعة، كل نص ساعة)")
 
     # الحالة 2: استقبال الفاصل الزمني (مثلاً: كل خمس دقائق)
     elif user_id in user_states and user_states[user_id]["step"] == "waiting_interval":
@@ -158,7 +164,6 @@ strftime('%Y-%m-%d %H:%M')}\n\n**متى تبغى أرسل لك تنبيه؟**\n(
 
 @app.on_message(filters.reply & filters.regex("^حذف$"))
 async def delete_task(client, message: Message):
-    # وظيفة الحذف (تحتاج لتطوير إضافي لربط الرد بالمهمة، لكنها موجودة للهيكل)
     await message.reply("للحذف، يرجى إيقاف البوت أو مسح المهام يدوياً في هذه النسخة.")
 
 # ----------------- تشغيل ----------------- #
