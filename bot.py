@@ -1,3 +1,4 @@
+> Faisal:
 import asyncio
 import re
 from datetime import datetime, timedelta
@@ -25,14 +26,21 @@ task_counter = 0
 # ----------------- الصلاحيات ----------------- #
 
 async def is_allowed(_, __, message: Message):
+    # السماح للمطور دائماً (صاحب المعرف ADMIN_ID)
     if message.from_user and message.from_user.id == ADMIN_ID:
         return True
+    
+    # في المجموعات، التحقق من رتبة العضو
     if message.chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP]:
         try:
             member = await app.get_chat_member(message.chat.id, message.from_user.id)
-            return member.status in [enums.ChatMemberStatus.ADMINISTRATOR, enums.ChatMemberStatus.OWNER]
-        except: return False
-    return message.chat.type == enums.ChatType.PRIVATE
+            if member.status in [enums.ChatMemberStatus.ADMINISTRATOR, enums.ChatMemberStatus.OWNER]:
+                return True
+        except:
+            pass
+    
+    # في الخاص، السماح فقط للمطور (تم التحقق منه بالأعلى)
+    return False
 
 # ----------------- أدوات التحليل ----------------- #
 
@@ -99,8 +107,14 @@ async def send_reminder(chat_id, task_id):
 
 @app.on_message(filters.text & ~filters.reply)
 async def handle_message(client, message: Message):
-    if not await is_allowed(None, None, message): return
-    
+    # التحقق من الصلاحيات
+    if not await is_allowed(None, None, message):
+        # الرد على غير المشرفين فقط إذا حاولوا استخدام الأوامر (عداد أو ج)
+        text_check = message.text.strip()
+        if text_check.startswith("عداد") or text_check == "ج":
+            return await message.reply("عذراً هذا الامر خاص بالمشرفين والمالك فقط ❌")
+        return
+
     text = message.text.strip()
     user_id = message.from_user.id
     chat_id = message.chat.id
@@ -114,8 +128,9 @@ async def handle_message(client, message: Message):
         parts = text.split(" ", 2)
         if len(parts) < 3:
             return await message.reply("يرجى كتابة الأمر كالتالي: عداد [الوصف] [الوقت]\nمثال: عداد مكالمة بعد ساعة")
-        
-        content = parts[1]
+
+> Faisal:
+content = parts[1]
         time_str = parts[2]
         target_time = parse_time(time_str)
 
@@ -131,10 +146,11 @@ async def handle_message(client, message: Message):
         }
         await message.reply(f"✅ تم ضبط عداد لـ ({content}) في وقت {target_time.strftime('%Y-%m-%d %H:%M')}\n\n**متى تبغى أرسل لك تنبيه؟**\n(مثلاً: كل 5 دقائق، كل ساعة، كل نص ساعة)")
 
-    # الحالة 2: استقبال الفاصل الزمني (الإزاحة الصحيحة هنا)
+    # الحالة 2: استقبال الفاصل الزمني
     elif user_id in user_states and user_states[user_id]["step"] == "waiting_interval":
         state = user_states[user_id]
         interval_mins = parse_interval(text)
+
         if not interval_mins:
             return await message.reply("❌ لم أفهم المدة. جرب: (كل 10 دقائق) أو (كل ساعة)")
 
@@ -162,6 +178,8 @@ async def handle_message(client, message: Message):
 
 @app.on_message(filters.reply & filters.regex("^حذف$"))
 async def delete_task(client, message: Message):
+    if not await is_allowed(None, None, message):
+        return await message.reply("عذراً هذا الامر خاص بالمشرفين والمالك فقط ❌")
     await message.reply("للحذف، يرجى إيقاف البوت أو مسح المهام يدوياً في هذه النسخة.")
 
 # ----------------- تشغيل ----------------- #
@@ -170,10 +188,10 @@ async def main():
     if not scheduler.running:
         scheduler.start()
     await app.start()
-    print("✅ البوت التفاعلي يعمل الآن...")
+    print("✅ البوت التفاعلي (للمشرفين فقط) يعمل الآن...")
     await asyncio.Event().wait()
 
-if __name__ == "__main__":
+if name == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
