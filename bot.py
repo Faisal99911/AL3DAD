@@ -189,7 +189,7 @@ async def main():
     print("✅ البوت التفاعلي (للمشرفين فقط) يعمل الآن...")
     await asyncio.Event().wait()
 
-if name == "__main__":
+if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
