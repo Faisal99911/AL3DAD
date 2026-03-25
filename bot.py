@@ -11,7 +11,7 @@ from pyrogram.types import Message
 
 API_ID = 34257542
 API_HASH = "614a1b5c5b712ac6de5530d5c571c42a"
-BOT_TOKEN = "8618854908:AAE_vNB2Skzqu_1wKCEOZRYQqwjH_oZOWjU"
+BOT_TOKEN = "8662063487:AAFhVJQSQCpn52tv98ISkZO0ztAWCDml4UU"
 ADMIN_ID = 1486879970
 
 app = Client("countdown_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
