@@ -128,7 +128,7 @@ async def handle_message(client, message: Message):
         if len(parts) < 3:
             return await message.reply("يرجى كتابة الأمر كالتالي: عداد [الوصف] [الوقت]\nمثال: عداد مكالمة بعد ساعة")
 
-content = parts[1]
+        content = parts[1]
         time_str = parts[2]
         target_time = parse_time(time_str)
 
