@@ -74,34 +74,31 @@ def parse_advanced_arabic_time(time_str):
         if re.fullmatch(pattern, time_str): return seconds
     return None
 
-def get_dynamic_timer_buttons(event_name, seconds):
+def get_dynamic_timer_buttons(seconds):
     days = seconds // 86400
     hours = (seconds % 86400) // 3600
     minutes = (seconds % 3600) // 60
     secs = seconds % 60
     
-    # المربع الكبير العلوي: اسم الحدث فقط (بدون توقيت)
-    top_button = [InlineKeyboardButton(f"{event_name}", callback_data="none")]
-    
-    # المربعات الثلاثة الصغيرة بالأسفل: الوقت المتبقي (ترتيب عربي: ثواني يمين، دقائق وسط، ساعات يسار)
-    # الإيموجيات على اليمين
+    # المربعات الثلاثة الصغيرة بالأسفل فقط (ترتيب عربي: ثواني يمين، دقائق وسط، ساعات يسار)
+    # الإيموجيات على اليمين (بعد الكلام)
     if days > 0:
         bottom_buttons = [
-            InlineKeyboardButton(f"{hours} ساعة ⏰", callback_data="none"),
-            InlineKeyboardButton(f"{days} يوم 📅", callback_data="none"),
-            InlineKeyboardButton(f"{minutes} دقيقة ⏳", callback_data="none")
+            InlineKeyboardButton(f"ساعة {hours} ⏰", callback_data="none"),
+            InlineKeyboardButton(f"يوم {days} 📅", callback_data="none"),
+            InlineKeyboardButton(f"دقيقة {minutes} ⏳", callback_data="none")
         ]
     else:
         bottom_buttons = [
-            InlineKeyboardButton(f"{hours} ساعة ⏰", callback_data="none"),
-            InlineKeyboardButton(f"{minutes} دقيقة ⏳", callback_data="none"),
-            InlineKeyboardButton(f"{secs} ثانية ⏱", callback_data="none")
+            InlineKeyboardButton(f"ساعة {hours} ⏰", callback_data="none"),
+            InlineKeyboardButton(f"دقيقة {minutes} ⏳", callback_data="none"),
+            InlineKeyboardButton(f"ثانية {secs} ⏱", callback_data="none")
         ]
     
     # عكس الترتيب ليكون الساعات يسار والثواني يمين (بما أن التيليجرام يعرض الأزرار من اليسار لليمين)
     bottom_buttons.reverse()
     
-    return InlineKeyboardMarkup([top_button, bottom_buttons])
+    return InlineKeyboardMarkup([bottom_buttons])
 
 @bot.on_message(filters.command(['start', 'help', 'مساعدة']))
 async def start(client, message):
@@ -125,7 +122,6 @@ async def set_timer_step1(client, message):
     # تحسين استخراج اسم الحدث ليشمل الجمل الطويلة
     match = re.search(r'^عداد\s+\(?(.+?)\)?\s+\(?([^\(\)]+?)\)?$', message.text)
     if not match:
-        # محاولة أخرى في حال كانت الأقواس متداخلة أو مفقودة
         parts = re.findall(r'\((.*?)\)', message.text)
         if len(parts) >= 2:
             event_name = parts[0].strip()
@@ -144,15 +140,16 @@ async def set_timer_step1(client, message):
     user_states[message.from_user.id] = {
         "event": event_name,
         "total_seconds": total_seconds,
-        "original_msg_id": message.id
+        "messages_to_delete": [message.id] # تخزين رسالة المستخدم الأولى
     }
-    await message.reply("حدد مدة التذكير ⏰\n(مثلاً: كل 5 دقائق، كل ساعة، كل 10 ثواني)")
+    sent_msg = await message.reply("حدد مدة التذكير ⏰\n(مثلاً: كل 5 دقائق، كل ساعة، كل 10 ثواني)")
+    user_states[message.from_user.id]["messages_to_delete"].append(sent_msg.id)
 
 @bot.on_message(filters.text & ~filters.command(['start', 'help', 'مساعدة', 'stop', 'ايقاف']))
 async def handle_responses(client, message):
     user_id = message.from_user.id
     
-    # 1. نظام الحذف المطور بالرد (حذف جميع الرسائل المتعلقة بما فيها رسالة المستخدم)
+    # 1. نظام الحذف المطور بالرد (حذف جميع الرسائل المتعلقة بما فيها رسائل المستخدم)
     if message.text.strip() == "حذف" and message.reply_to_message:
         reply_msg_id = message.reply_to_message.id
         found_timer_key = None
@@ -163,16 +160,11 @@ async def handle_responses(client, message):
         
         if found_timer_key:
             active_timers[found_timer_key]["active"] = False
-            # حذف جميع الرسائل السابقة لهذا العداد
+            # حذف جميع الرسائل السابقة لهذا العداد (بما فيها رسائل المستخدم المخزنة)
             for msg_id in active_timers[found_timer_key]["messages"]:
                 try:
                     await client.delete_messages(message.chat.id, msg_id)
                 except: pass
-            
-            # حذف رسالة المستخدم التي بدأت العداد
-            try:
-                await client.delete_messages(message.chat.id, active_timers[found_timer_key]["trigger_msg_id"])
-            except: pass
             
             # حذف رسالة "حذف" الحالية
             try:
@@ -197,24 +189,29 @@ async def handle_responses(client, message):
         interval_seconds = parse_advanced_arabic_time(interval_str)
         
         if interval_seconds is None:
-            # إعادة الحالة للمستخدم ليحاول مرة أخرى بدلاً من التجاهل
             user_states[user_id] = state
-            return await message.reply(f"لم أفهم مدة التذكير: {message.text} حاول مرة أخرى (مثلاً: كل 5 دقائق) ❌")
+            sent_err = await message.reply(f"لم أفهم مدة التذكير: {message.text} حاول مرة أخرى (مثلاً: كل 5 دقائق) ❌")
+            state["messages_to_delete"].append(message.id)
+            state["messages_to_delete"].append(sent_err.id)
+            return
 
         event = state["event"]
         total_seconds = state["total_seconds"]
-        trigger_msg_id = state["original_msg_id"]
+        
+        # إضافة رسالة المستخدم (التي حدد فيها المدة) لقائمة الحذف
+        state["messages_to_delete"].append(message.id)
         
         start_msg = await message.reply(f"تم البدء سأذكرك بـ **{event}** كل **{message.text}** ✅")
-        asyncio.create_task(run_countdown(client, message.chat.id, event, total_seconds, interval_seconds, trigger_msg_id, start_msg.id))
+        state["messages_to_delete"].append(start_msg.id)
+        
+        asyncio.create_task(run_countdown(client, message.chat.id, event, total_seconds, interval_seconds, state["messages_to_delete"]))
 
-async def run_countdown(client, chat_id, event, total_seconds, interval_seconds, trigger_msg_id, start_msg_id):
+async def run_countdown(client, chat_id, event, total_seconds, interval_seconds, initial_messages):
     remaining = total_seconds
     timer_key = f"{chat_id}_{event}_{datetime.now().timestamp()}"
     active_timers[timer_key] = {
         "active": True, 
-        "messages": [start_msg_id], 
-        "trigger_msg_id": trigger_msg_id
+        "messages": initial_messages
     }
     
     while remaining > 0:
@@ -227,18 +224,18 @@ async def run_countdown(client, chat_id, event, total_seconds, interval_seconds,
         s = remaining % 60
         
         display = ""
-        if d > 0: display += f"{d} يوم "
-        if h > 0: display += f"{h} ساعة "
-        if m > 0: display += f"{m} دقيقة "
-        if s > 0 or not display: display += f"{s} ثانية"
+        if d > 0: display += f"يوم {d} "
+        if h > 0: display += f"ساعة {h} "
+        if m > 0: display += f"دقيقة {m} "
+        if s > 0 or not display: display += f"ثانية {s}"
         
-        # النص في الرسالة (فقط الوقت المتبقي)
-        text = f"⏳ الوقت المتبقي: {display.strip()}"
+        # النص في الرسالة (اسم الحدث كنص عادي فوق الأزرار)
+        text = f"**{event}**\n⏳ الوقت المتبقي: {display.strip()}"
         
         sent_msg = await client.send_message(
             chat_id, 
             text, 
-            reply_markup=get_dynamic_timer_buttons(event, remaining)
+            reply_markup=get_dynamic_timer_buttons(remaining)
         )
         
         active_timers[timer_key]["messages"].append(sent_msg.id)
@@ -258,20 +255,21 @@ async def run_countdown(client, chat_id, event, total_seconds, interval_seconds,
                 if not member.user.is_bot:
                     members.append(member.user.mention)
             
-            await client.send_message(chat_id, f"🔔 انتهى الوقت! حان موعد: **{event}**")
+            # الرسالة المطلوبة بالضبط
+            final_text = "انتهـى الوقـت 🙅🏻‍♂️\nيا شـبـاب🔔"
+            await client.send_message(chat_id, final_text)
             
             # تقسيم المنشن لمجموعات من 5
             for i in range(0, len(members), 5):
                 chunk = members[i:i+5]
                 await client.send_message(chat_id, " ".join(chunk))
-                await asyncio.sleep(1) # تأخير بسيط لتجنب الفلود
+                await asyncio.sleep(1)
                 
         except Exception as e:
-            await client.send_message(chat_id, f"انتهى الوقت 🚨\n\nحان موعد: **{event}**\n\n@all")
+            await client.send_message(chat_id, "انتهـى الوقـت 🙅🏻‍♂️\nيا شـبـاب🔔\n\n@all")
             
         del active_timers[timer_key]
 
-# معالجة الصور لضمان عدم توقف البوت
 @bot.on_message(filters.photo)
 async def handle_photo(client, message):
     await message.reply("وصلت الصورة، لكنني بوت عداد تنازلي فقط. أرسل `عداد (الحدث) (المدة)` للبدء! ⏳")
