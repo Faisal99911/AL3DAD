@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # بوت العداد الاحترافي - AL3DAD
-# الإصدار: 2.0.0
+# الإصدار: 2.0.1 (نسخة معدلة)
 
 import os
 import asyncio
@@ -21,7 +21,7 @@ BOT_TOKEN = "8662063487:AAFhVJQSQCpn52tv98ISkZO0ztAWCDml4UU"
 الحد_الأقصى_للمؤقتات = 10  # أقصى عدد مؤقتات لكل مستخدم
 أقصى_مدة = 365 * 86400     # سنة كحد أقصى
 أقل_فترة_تذكير = 5        # أقل فترة تذكير (ثواني)
-نسخة_البوت = "2.0.0"
+نسخة_البوت = "2.0.1"
 
 # ====================== قاعدة البيانات ======================
 class قاعدة_البيانات:
@@ -87,25 +87,31 @@ class قاعدة_البيانات:
 قاعدة = قاعدة_البيانات()
 
 # ====================== الأدوات المساعدة ======================
+# تجميع الأنماط العادية لتحسين الأداء
+ARABIC_NUMBERS_TRANS = str.maketrans('٠١٢٣٤٥٦٧٨٩', '0123456789')
+START_WORDS_REGEX = re.compile(r'^(بعد|في|خلال)\s+')
+TOMORROW_REGEX = re.compile(r'(بكرة|بكرى|غدا)\s*')
+TIME_REGEX = re.compile(r'(\d+)\s*(مساء|صباحا|صباحاً|م|ص)')
+NUMBER_UNIT_REGEX = re.compile(r'(\d+)\s*(.*)')
+
 def تحليل_الوقت(النص: str) -> Optional[int]:
     """تحليل النص الزمني بالعربية"""
     الآن = datetime.now()
     النص = النص.strip().lower()
     
     # تحويل الأرقام العربية
-    الأرقام = str.maketrans('٠١٢٣٤٥٦٧٨٩', '0123456789')
-    النص = النص.translate(الأرقام)
+    النص = النص.translate(ARABIC_NUMBERS_TRANS)
     
     # إزالة كلمات البداية
-    النص = re.sub(r'^(بعد|في|خلال)\s+', '', النص)
+    النص = START_WORDS_REGEX.sub('', النص)
     
     # التحقق من كلمة بكرة
-    بكرة = bool(re.search(r'(بكرة|بكرى|غدا)', النص))
+    بكرة = bool(TOMORROW_REGEX.search(النص))
     if بكرة:
-        النص = re.sub(r'(بكرة|بكرى|غدا)\s*', '', النص).strip()
+        النص = TOMORROW_REGEX.sub('', النص).strip()
     
     # تحليل الوقت (الساعة)
-    وقت_محدد = re.search(r'(\d+)\s*(مساء|صباحا|صباحاً|م|ص)', النص)
+    وقت_محدد = TIME_REGEX.search(النص)
     if وقت_محدد:
         ساعة = int(وقت_محدد.group(1))
         الفترة = وقت_محدد.group(2)
@@ -127,7 +133,7 @@ def تحليل_الوقت(النص: str) -> Optional[int]:
     }
     
     for مفتاح, قيمة in حالات_خاصة.items():
-        if re.search(مفتاح, النص):
+        if مفتاح in النص: # استخدام 'in' بدلاً من re.search لتحسين الأداء للحالات البسيطة
             return قيمة
     
     # تحليل الأرقام مع الوحدات
@@ -138,12 +144,12 @@ def تحليل_الوقت(النص: str) -> Optional[int]:
         'يوم': 86400, 'أيام': 86400, 'ايام': 86400,
     }
     
-    تطابق = re.search(r'(\d+)\s*(.*)', النص)
+    تطابق = NUMBER_UNIT_REGEX.search(النص)
     if تطابق:
         العدد = int(تطابق.group(1))
         الوحدة = تطابق.group(2).strip()
         for نمط, ثواني in وحدات_الوقت.items():
-            if re.search(نمط, الوحدة):
+            if نمط in الوحدة: # استخدام 'in' بدلاً من re.search لتحسين الأداء للحالات البسيطة
                 return العدد * ثواني
     
     return None
@@ -175,23 +181,23 @@ def أزرار_ديناميكية(الحدث: str, المتبقي: int) -> Inlin
     ثوان = المتبقي % 60
     
     # زر الحدث
-    الزر_العلوي = [InlineKeyboardButton(f"⏰ {الحدث[:30]}", callback_data="none")]
+    الزر_العلوي = [InlineKeyboardButton(f"{الحدث[:30]} ⏰", callback_data="none")] # نقل الإيموجي بعد النص
     
     # أزرار الوقت
     if أيام > 0:
         الأزرار_السفلية = [
-            InlineKeyboardButton(f"📅 {أيام} ي", callback_data="none"),
-            InlineKeyboardButton(f"⏱️ {ساعات} س", callback_data="none"),
-            InlineKeyboardButton(f"⏲️ {دقائق} د", callback_data="none")
+            InlineKeyboardButton(f"{أيام} ي 📅", callback_data="none"), # نقل الإيموجي بعد النص
+            InlineKeyboardButton(f"{ساعات} س ⏱️", callback_data="none"), # نقل الإيموجي بعد النص
+            InlineKeyboardButton(f"{دقائق} د ⏲️", callback_data="none") # نقل الإيموجي بعد النص
         ]
     else:
         الأزرار_السفلية = [
-            InlineKeyboardButton(f"⏱️ {ساعات} س", callback_data="none"),
-            InlineKeyboardButton(f"⏲️ {دقائق} د", callback_data="none"),
-            InlineKeyboardButton(f"⚡ {ثوان} ث", callback_data="none")
+            InlineKeyboardButton(f"{ساعات} س ⏱️", callback_data="none"), # نقل الإيموجي بعد النص
+            InlineKeyboardButton(f"{دقائق} د ⏲️", callback_data="none"), # نقل الإيموجي بعد النص
+            InlineKeyboardButton(f"{ثوان} ث ⚡", callback_data="none") # نقل الإيموجي بعد النص
         ]
     
-    return InlineKeyboardMarkup([الزر_العلوي, الأزرار_السفلية])
+    return InlineKeyboardMarkup([الزر_العلوي, الأزرار_السفلية]))
 
 # ====================== البوت ======================
 البوت = Client("AL3DAD", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
@@ -233,8 +239,13 @@ async def ايقاف_الكل(client, message: Message):
     
     # إلغاء المهام النشطة
     for معرف_المؤقت, المهمة in list(المهام_النشطة.items()):
-        if not المهمة.done():
-            المهمة.cancel()
+        # يجب التحقق من معرف المستخدم قبل إلغاء المهمة
+        # لأن المهام_النشطة قد تحتوي على مؤقتات لمستخدمين آخرين
+        مؤقت_قاعدة_البيانات = قاعدة.جلب_المؤقتات_النشطة(معرف_المؤقت=معرف_المؤقت)
+        if مؤقت_قاعدة_البيانات and مؤقت_قاعدة_البيانات[2] == معرف_المستخدم:
+            if not المهمة.done():
+                المهمة.cancel()
+            del المهام_النشطة[معرف_المؤقت] # إزالة المهمة الملغاة من القاموس
     
     await message.reply(f"🛑 **تم إيقاف {العدد} مؤقت**\n\nيمكنك بدء مؤقت جديد بأمر `عداد (الحدث) (المدة)`")
 
@@ -290,10 +301,11 @@ async def الغاء_مؤقت(client, message: Message):
     # إلغاء المهمة إذا كانت نشطة
     if معرف_المؤقت in المهام_النشطة and not المهام_النشطة[معرف_المؤقت].done():
         المهام_النشطة[معرف_المؤقت].cancel()
+        del المهام_النشطة[معرف_المؤقت] # إزالة المهمة الملغاة من القاموس
     
-    await message.reply(f"🗑️ **تم إلغاء المؤقت:** {مؤقت[3]}\n🆔 المعرف: `{معرف_المؤقت}`")
+    await message.reply(f"✅ **تم إلغاء المؤقت** `{معرف_المؤقت}` بنجاح.")
 
-@البوت.on_message(filters.regex(r'^عداد\s+\((.+)\)\s+\((.+)\)$') | filters.regex(r'^عداد\s+(.+)\s+(.+)$'))
+@البوت.on_message(filters.regex(r'^عداد\s+\(?(.+?)\)?\s+\(?(.+?)\)?$')) # تبسيط regex
 async def انشاء_مؤقت(client, message: Message):
     """إنشاء مؤقت جديد"""
     معرف_المستخدم = message.from_user.id
@@ -301,9 +313,7 @@ async def انشاء_مؤقت(client, message: Message):
     # استخراج البيانات
     النص = message.text
     تطابق = re.search(r'^عداد\s+\(?(.+?)\)?\s+\(?(.+?)\)?$', النص)
-    if not تطابق:
-        await message.reply("❌ **صيغة غير صحيحة!**\n\nاستخدم: `عداد (الحدث) (المدة)`\n\nمثال: `عداد (اجتماع) (بعد 30 دقيقة)`")
-        return
+    # لا حاجة للتحقق من تطابق هنا لأن الفلتر يضمن ذلك
     
     اسم_الحدث = تطابق.group(1).strip()
     مدة_الحدث = تطابق.group(2).strip()
@@ -374,13 +384,22 @@ async def معالجة_فترة_التذكير(client, message: Message):
     # تشغيل العد التنازلي
     المهمة = asyncio.create_task(تشغيل_المؤقت(
         client, معرف_المؤقت, message.chat.id, معرف_المستخدم,
-        الحالة["الحدث"], وقت_الانتهاء, ثواني_الفترة
+        الحالة["الحدث"], وقت_الانتهاء, ثواني_الفترة, الرسالة_المؤقتة.id # تمرير معرف الرسالة الأولية
     ))
     المهام_النشطة[معرف_المؤقت] = المهمة
 
-async def تشغيل_المؤقت(client, معرف_المؤقت, معرف_المجموعة, معرف_المستخدم, الحدث, وقت_الانتهاء, فترة_التذكير):
+async def تشغيل_المؤقت(client, معرف_المؤقت, معرف_المجموعة, معرف_المستخدم, الحدث, وقت_الانتهاء, فترة_التذكير, معرف_الرسالة_الأولية):
     """تشغيل العد التنازلي"""
     try:
+        # جلب معلومات المستخدم مرة واحدة
+        try:
+            المستخدم = await client.get_users(معرف_المستخدم)
+            منشن = f"[{المستخدم.first_name}](tg://user?id={معرف_المستخدم})"
+        except Exception:
+            منشن = f"@{معرف_المستخدم}"
+
+        current_message_id = معرف_الرسالة_الأولية
+
         while True:
             الآن = int(datetime.now().timestamp())
             المتبقي = وقت_الانتهاء - الآن
@@ -389,13 +408,6 @@ async def تشغيل_المؤقت(client, معرف_المؤقت, معرف_الم
                 # انتهاء الوقت
                 معلومات_المؤقت = قاعدة.جلب_المؤقتات_النشطة(معرف_المؤقت=معرف_المؤقت)
                 if معلومات_المؤقت and معلومات_المؤقت[8] == 1:
-                    # عمل منشن للمستخدم
-                    try:
-                        المستخدم = await client.get_users(معرف_المستخدم)
-                        منشن = f"[{المستخدم.first_name}](tg://user?id={معرف_المستخدم})"
-                    except:
-                        منشن = f"@{معرف_المستخدم}"
-                    
                     await client.send_message(
                         معرف_المجموعة,
                         f"🚨 **انتهى الوقت!** 🚨\n\n📢 **{الحدث}**\n\n{منشن}\n\n⏰ حان الوقت للقيام بالمهمة!",
@@ -407,29 +419,19 @@ async def تشغيل_المؤقت(client, معرف_المؤقت, معرف_الم
             # إرسال تحديث
             المتبقي_منسق = تنسيق_الوقت(المتبقي)
             try:
-                # حذف الرسالة السابقة
-                معلومات_المؤقت = قاعدة.جلب_المؤقتات_النشطة(معرف_المؤقت=معرف_المؤقت)
-                if معلومات_المؤقت and معلومات_المؤقت[6]:
-                    try:
-                        await client.delete_messages(معرف_المجموعة, معلومات_المؤقت[6])
-                    except:
-                        pass
-                
-                # إرسال رسالة جديدة
-                الرسالة = await client.send_message(
+                # استخدام edit_message_text بدلاً من delete ثم send
+                await client.edit_message_text(
                     معرف_المجموعة,
+                    current_message_id,
                     f"⏰ **{الحدث}**\n⏳ متبقي: {المتبقي_منسق}",
                     reply_markup=أزرار_ديناميكية(الحدث, المتبقي),
                     parse_mode="HTML"
                 )
                 
-                # تحديث معرف الرسالة
-                قاعدة.تحديث_الرسالة(معرف_المؤقت, الرسالة.id)
-                
             except FloodWait as e:
                 await asyncio.sleep(e.value)
             except Exception as e:
-                print(f"خطأ في المؤقت {معرف_المؤقت}: {e}")
+                print(f"خطأ في تحديث المؤقت {معرف_المؤقت} (رسالة {current_message_id}): {e}")
             
             # انتظار الفترة المحددة
             await asyncio.sleep(min(فترة_التذكير, المتبقي))
@@ -448,7 +450,7 @@ async def معالجة_الأزرار(client, callback_query: CallbackQuery):
 @البوت.on_message(filters.text & filters.reply)
 async def حذف_بالرد(client, message: Message):
     """حذف المؤقت بالرد"""
-    if message.text.strip() not in ["حذف", "delete"]:
+    if message.text.strip().lower() not in ["حذف", "delete"]:
         return
     
     if not message.reply_to_message:
@@ -459,18 +461,22 @@ async def حذف_بالرد(client, message: Message):
     المؤقتات = قاعدة.جلب_المؤقتات_النشطة()
     
     for مؤقت in المؤقتات:
-        if مؤقت[6] == معرف_الرد:
+        # مؤقت[6] هو معرف_الرسالة
+        # مؤقت[2] هو معرف_المستخدم
+        if مؤقت[6] == معرف_الرد and مؤقت[2] == message.from_user.id:
             قاعدة.إلغاء_مؤقت(مؤقت[0])
             if مؤقت[0] in المهام_النشطة:
                 المهام_النشطة[مؤقت[0]].cancel()
+                del المهام_النشطة[مؤقت[0]]
             
             try:
                 await message.reply_to_message.delete()
-            except:
-                pass
-            
-            await message.reply("🗑️ **تم الحذف بنجاح**")
+                await message.reply("🗑️ **تم الحذف بنجاح**")
+            except Exception as e:
+                print(f"خطأ في حذف الرسالة: {e}")
+                await message.reply("❌ **حدث خطأ أثناء حذف الرسالة.**")
             return
+    await message.reply("❌ **لم أجد مؤقتًا مرتبطًا بهذه الرسالة أو ليس لديك صلاحية حذفه.**")
 
 if __name__ == "__main__":
     print("🚀 بوت العداد الاحترافي يعمل...")
