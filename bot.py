@@ -80,22 +80,21 @@ def get_dynamic_timer_buttons(seconds):
     minutes = (seconds % 3600) // 60
     secs = seconds % 60
     
-    # المربعات الثلاثة الصغيرة بالأسفل فقط (ترتيب عربي: ثواني يمين، دقائق وسط، ساعات يسار)
-    # الإيموجيات على اليمين (بعد الكلام)
+    # تصحيح الترتيب: الرقم أولاً ثم الكلمة ثم الإيموجي
     if days > 0:
         bottom_buttons = [
-            InlineKeyboardButton(f"ساعة {hours} ⏰", callback_data="none"),
-            InlineKeyboardButton(f"يوم {days} 📅", callback_data="none"),
-            InlineKeyboardButton(f"دقيقة {minutes} ⏳", callback_data="none")
+            InlineKeyboardButton(f"{hours} ساعة ⏰", callback_data="none"),
+            InlineKeyboardButton(f"{days} يوم 📅", callback_data="none"),
+            InlineKeyboardButton(f"{minutes} دقيقة ⏳", callback_data="none")
         ]
     else:
         bottom_buttons = [
-            InlineKeyboardButton(f"ساعة {hours} ⏰", callback_data="none"),
-            InlineKeyboardButton(f"دقيقة {minutes} ⏳", callback_data="none"),
-            InlineKeyboardButton(f"ثانية {secs} ⏱", callback_data="none")
+            InlineKeyboardButton(f"{hours} ساعة ⏰", callback_data="none"),
+            InlineKeyboardButton(f"{minutes} دقيقة ⏳", callback_data="none"),
+            InlineKeyboardButton(f"{secs} ثانية ⏱", callback_data="none")
         ]
     
-    # عكس الترتيب ليكون الساعات يسار والثواني يمين (بما أن التيليجرام يعرض الأزرار من اليسار لليمين)
+    # عكس الترتيب ليكون الساعات يسار والثواني يمين
     bottom_buttons.reverse()
     
     return InlineKeyboardMarkup([bottom_buttons])
@@ -119,7 +118,6 @@ async def start(client, message):
 
 @bot.on_message(filters.regex(r'^عداد\s+\((.+)\)\s+\((.+)\)$') | filters.regex(r'^عداد\s+(.+)\s+(.+)$'))
 async def set_timer_step1(client, message):
-    # تحسين استخراج اسم الحدث ليشمل الجمل الطويلة
     match = re.search(r'^عداد\s+\(?(.+?)\)?\s+\(?([^\(\)]+?)\)?$', message.text)
     if not match:
         parts = re.findall(r'\((.*?)\)', message.text)
@@ -140,7 +138,7 @@ async def set_timer_step1(client, message):
     user_states[message.from_user.id] = {
         "event": event_name,
         "total_seconds": total_seconds,
-        "messages_to_delete": [message.id] # تخزين رسالة المستخدم الأولى
+        "messages_to_delete": [message.id]
     }
     sent_msg = await message.reply("حدد مدة التذكير ⏰\n(مثلاً: كل 5 دقائق، كل ساعة، كل 10 ثواني)")
     user_states[message.from_user.id]["messages_to_delete"].append(sent_msg.id)
@@ -149,7 +147,6 @@ async def set_timer_step1(client, message):
 async def handle_responses(client, message):
     user_id = message.from_user.id
     
-    # 1. نظام الحذف المطور بالرد (حذف جميع الرسائل المتعلقة بما فيها رسائل المستخدم)
     if message.text.strip() == "حذف" and message.reply_to_message:
         reply_msg_id = message.reply_to_message.id
         found_timer_key = None
@@ -160,21 +157,16 @@ async def handle_responses(client, message):
         
         if found_timer_key:
             active_timers[found_timer_key]["active"] = False
-            # حذف جميع الرسائل السابقة لهذا العداد (بما فيها رسائل المستخدم المخزنة)
             for msg_id in active_timers[found_timer_key]["messages"]:
                 try:
                     await client.delete_messages(message.chat.id, msg_id)
                 except: pass
-            
-            # حذف رسالة "حذف" الحالية
             try:
                 await message.delete()
             except: pass
-            
             del active_timers[found_timer_key]
             return
         else:
-            # إذا كان الرد على رسالة عادية من البوت
             if message.reply_to_message.from_user.id == (await client.get_me()).id:
                 try:
                     await message.reply_to_message.delete()
@@ -182,7 +174,6 @@ async def handle_responses(client, message):
                 except: pass
         return
 
-    # 2. تحديد مدة التذكير
     if user_id in user_states:
         state = user_states.pop(user_id)
         interval_str = message.text.replace("كل", "").strip()
@@ -197,8 +188,6 @@ async def handle_responses(client, message):
 
         event = state["event"]
         total_seconds = state["total_seconds"]
-        
-        # إضافة رسالة المستخدم (التي حدد فيها المدة) لقائمة الحذف
         state["messages_to_delete"].append(message.id)
         
         start_msg = await message.reply(f"تم البدء سأذكرك بـ **{event}** كل **{message.text}** ✅")
@@ -224,12 +213,13 @@ async def run_countdown(client, chat_id, event, total_seconds, interval_seconds,
         s = remaining % 60
         
         display = ""
-        if d > 0: display += f"يوم {d} "
-        if h > 0: display += f"ساعة {h} "
-        if m > 0: display += f"دقيقة {m} "
-        if s > 0 or not display: display += f"ثانية {s}"
+        if d > 0: display += f"{d} يوم "
+        if h > 0: display += f"{h} ساعة "
+        if m > 0: display += f"{m} دقيقة "
+        if s > 0 or not display: display += f"{s} ثانية"
         
-        # النص في الرسالة (اسم الحدث كنص عادي فوق الأزرار)
+        # تصحيح الترتيب في النص: الرقم ثم الكلمة
+        # استخدام مسافات لضمان المحاذاة لليمين في التيليجرام
         text = f"**{event}**\n⏳ الوقت المتبقي: {display.strip()}"
         
         sent_msg = await client.send_message(
@@ -248,25 +238,23 @@ async def run_countdown(client, chat_id, event, total_seconds, interval_seconds,
             remaining -= interval_seconds
 
     if timer_key in active_timers and active_timers[timer_key]["active"]:
-        # منشن ذكي للجميع عند الانتهاء (كل 5 في رسالة لتجنب السبام)
         try:
             members = []
             async for member in client.get_chat_members(chat_id):
                 if not member.user.is_bot:
                     members.append(member.user.mention)
             
-            # الرسالة المطلوبة بالضبط
-            final_text = "انتهـى الوقـت 🙅🏻‍♂️\nيا شـبـاب🔔"
+            # الرسالة النهائية المحدثة: اسم الحدث أولاً
+            final_text = f"**{event}**\n\nانتهـى الوقـت 🙅🏻‍♂️\nيا شـبـاب🔔"
             await client.send_message(chat_id, final_text)
             
-            # تقسيم المنشن لمجموعات من 5
             for i in range(0, len(members), 5):
                 chunk = members[i:i+5]
                 await client.send_message(chat_id, " ".join(chunk))
                 await asyncio.sleep(1)
                 
         except Exception as e:
-            await client.send_message(chat_id, "انتهـى الوقـت 🙅🏻‍♂️\nيا شـبـاب🔔\n\n@all")
+            await client.send_message(chat_id, f"**{event}**\n\nانتهـى الوقـت 🙅🏻‍♂️\nيا شـبـاب🔔\n\n@all")
             
         del active_timers[timer_key]
 
