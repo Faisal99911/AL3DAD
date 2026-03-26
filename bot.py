@@ -197,7 +197,7 @@ def أزرار_ديناميكية(الحدث: str, المتبقي: int) -> Inlin
             InlineKeyboardButton(f"{ثوان} ث ⚡", callback_data="none") # نقل الإيموجي بعد النص
         ]
     
-    return InlineKeyboardMarkup([الزر_العلوي, الأزرار_السفلية]))
+    return InlineKeyboardMarkup([الزر_العلوي, الأزرار_السفلية])
 
 # ====================== البوت ======================
 البوت = Client("AL3DAD", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
