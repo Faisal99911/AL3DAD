@@ -6,7 +6,7 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 import os
 import asyncio
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pyrogram.errors import FloodWait, MessageDeleteForbidden
 
 # --- إعدادات البوت المباشرة ---
@@ -25,10 +25,14 @@ bot = Client(
 user_states = {}
 active_timers = {}
 
+# دالة للحصول على الوقت الحالي بتوقيت السعودية (GMT+3)
+def get_ksa_now():
+    ksa_tz = timezone(timedelta(hours=3))
+    return datetime.now(ksa_tz).replace(tzinfo=None)
+
 def parse_advanced_arabic_time(time_str):
-    now = datetime.now()
+    now = get_ksa_now()
     time_str = time_str.strip().lower()
-    # إزالة الأسطر الجديدة والمسافات الزائدة من وقت العداد لضمان التحليل الصحيح
     time_str = " ".join(time_str.split())
     
     arabic_nums = str.maketrans('٠١٢٣٤٥٦٧٨٩', '0123456789')
@@ -116,23 +120,20 @@ async def start(client, message):
     )
     await message.reply(help_text)
 
-# تحسين الفلتر ليدعم الأسطر الجديدة (re.DOTALL)
 @bot.on_message(filters.regex(r'^عداد\s*\(.*?\)\s*\(.*?\)$', re.DOTALL) | filters.regex(r'^عداد\s+.*?\s+.*?$', re.DOTALL))
 async def set_timer_step1(client, message):
-    # استخراج النصوص بين الأقواس بدقة حتى مع وجود أسطر جديدة
     parts = re.findall(r'\((.*?)\)', message.text, re.DOTALL)
     
     if len(parts) >= 2:
         event_name = parts[0].strip()
         time_str = parts[1].strip()
     else:
-        # محاولة الاستخراج بدون أقواس في حال لم تتوفر
         match = re.search(r'^عداد\s+(.+?)\s+(.+?)$', message.text, re.DOTALL)
         if match:
             event_name = match.group(1).strip()
             time_str = match.group(2).strip()
         else:
-            return await message.reply("صيغة غير صحيحة استخدم: `عداد (الحدث) (بعد المدة)` ❌")
+            return # تجاهل الرسائل التي لا تطابق الصيغة تماماً
         
     total_seconds = parse_advanced_arabic_time(time_str)
     
@@ -151,6 +152,7 @@ async def set_timer_step1(client, message):
 async def handle_responses(client, message):
     user_id = message.from_user.id
     
+    # 1. نظام الحذف المطور بالرد
     if message.text.strip() == "حذف" and message.reply_to_message:
         reply_msg_id = message.reply_to_message.id
         found_timer_key = None
@@ -178,12 +180,16 @@ async def handle_responses(client, message):
                 except: pass
         return
 
+    # 2. تحديد مدة التذكير (فقط إذا كان المستخدم في حالة انتظار)
     if user_id in user_states:
+        # التحقق من أن الرسالة هي رد على رسالة البوت أو أن البوت ينتظر فعلاً
+        # لضمان عدم الرد على كلام عشوائي
         state = user_states.pop(user_id)
         interval_str = message.text.replace("كل", "").strip()
         interval_seconds = parse_advanced_arabic_time(interval_str)
         
         if interval_seconds is None:
+            # إذا لم يفهم الوقت، نعيد الحالة ونطلب منه المحاولة مرة أخرى
             user_states[user_id] = state
             sent_err = await message.reply(f"لم أفهم مدة التذكير: {message.text} حاول مرة أخرى (مثلاً: كل 5 دقائق) ❌")
             state["messages_to_delete"].append(message.id)
@@ -201,7 +207,7 @@ async def handle_responses(client, message):
 
 async def run_countdown(client, chat_id, event, total_seconds, interval_seconds, initial_messages):
     remaining = total_seconds
-    timer_key = f"{chat_id}_{event}_{datetime.now().timestamp()}"
+    timer_key = f"{chat_id}_{event}_{get_ksa_now().timestamp()}"
     active_timers[timer_key] = {
         "active": True, 
         "messages": initial_messages
@@ -262,8 +268,9 @@ async def run_countdown(client, chat_id, event, total_seconds, interval_seconds,
 
 @bot.on_message(filters.photo)
 async def handle_photo(client, message):
-    await message.reply("وصلت الصورة، لكنني بوت عداد تنازلي فقط. أرسل `عداد (الحدث) (المدة)` للبدء! ⏳")
+    # لا يرد على الصور إلا إذا كانت موجهة له أو في سياق معين، سأجعلها صامتة الآن لمنع الإزعاج
+    pass
 
 if __name__ == "__main__":
-    print("Polished Arabic Countdown Bot is starting...")
+    print("Polished Arabic Countdown Bot is starting (KSA Time)...")
     bot.run()
