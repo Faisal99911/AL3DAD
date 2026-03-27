@@ -28,6 +28,9 @@ active_timers = {}
 def parse_advanced_arabic_time(time_str):
     now = datetime.now()
     time_str = time_str.strip().lower()
+    # إزالة الأسطر الجديدة والمسافات الزائدة من وقت العداد لضمان التحليل الصحيح
+    time_str = " ".join(time_str.split())
+    
     arabic_nums = str.maketrans('٠١٢٣٤٥٦٧٨٩', '0123456789')
     time_str = time_str.translate(arabic_nums)
     time_str = re.sub(r'^(بعد|في|خلال)\s+', '', time_str)
@@ -80,7 +83,6 @@ def get_dynamic_timer_buttons(seconds):
     minutes = (seconds % 3600) // 60
     secs = seconds % 60
     
-    # تصحيح الترتيب: الرقم أولاً ثم الكلمة ثم الإيموجي
     if days > 0:
         bottom_buttons = [
             InlineKeyboardButton(f"{hours} ساعة ⏰", callback_data="none"),
@@ -94,9 +96,7 @@ def get_dynamic_timer_buttons(seconds):
             InlineKeyboardButton(f"{secs} ثانية ⏱", callback_data="none")
         ]
     
-    # عكس الترتيب ليكون الساعات يسار والثواني يمين
     bottom_buttons.reverse()
-    
     return InlineKeyboardMarkup([bottom_buttons])
 
 @bot.on_message(filters.command(['start', 'help', 'مساعدة']))
@@ -116,19 +116,23 @@ async def start(client, message):
     )
     await message.reply(help_text)
 
-@bot.on_message(filters.regex(r'^عداد\s+\((.+)\)\s+\((.+)\)$') | filters.regex(r'^عداد\s+(.+)\s+(.+)$'))
+# تحسين الفلتر ليدعم الأسطر الجديدة (re.DOTALL)
+@bot.on_message(filters.regex(r'^عداد\s*\(.*?\)\s*\(.*?\)$', re.DOTALL) | filters.regex(r'^عداد\s+.*?\s+.*?$', re.DOTALL))
 async def set_timer_step1(client, message):
-    match = re.search(r'^عداد\s+\(?(.+?)\)?\s+\(?([^\(\)]+?)\)?$', message.text)
-    if not match:
-        parts = re.findall(r'\((.*?)\)', message.text)
-        if len(parts) >= 2:
-            event_name = parts[0].strip()
-            time_str = parts[1].strip()
+    # استخراج النصوص بين الأقواس بدقة حتى مع وجود أسطر جديدة
+    parts = re.findall(r'\((.*?)\)', message.text, re.DOTALL)
+    
+    if len(parts) >= 2:
+        event_name = parts[0].strip()
+        time_str = parts[1].strip()
+    else:
+        # محاولة الاستخراج بدون أقواس في حال لم تتوفر
+        match = re.search(r'^عداد\s+(.+?)\s+(.+?)$', message.text, re.DOTALL)
+        if match:
+            event_name = match.group(1).strip()
+            time_str = match.group(2).strip()
         else:
             return await message.reply("صيغة غير صحيحة استخدم: `عداد (الحدث) (بعد المدة)` ❌")
-    else:
-        event_name = match.group(1).strip()
-        time_str = match.group(2).strip()
         
     total_seconds = parse_advanced_arabic_time(time_str)
     
@@ -218,8 +222,6 @@ async def run_countdown(client, chat_id, event, total_seconds, interval_seconds,
         if m > 0: display += f"{m} دقيقة "
         if s > 0 or not display: display += f"{s} ثانية"
         
-        # تصحيح الترتيب في النص: الرقم ثم الكلمة
-        # استخدام مسافات لضمان المحاذاة لليمين في التيليجرام
         text = f"**{event}**\n⏳ الوقت المتبقي: {display.strip()}"
         
         sent_msg = await client.send_message(
@@ -244,13 +246,13 @@ async def run_countdown(client, chat_id, event, total_seconds, interval_seconds,
                 if not member.user.is_bot:
                     members.append(member.user.mention)
             
-            # الرسالة النهائية المحدثة: اسم الحدث أولاً
             final_text = f"**{event}**\n\nانتهـى الوقـت 🙅🏻‍♂️\nيا شـبـاب🔔"
             await client.send_message(chat_id, final_text)
             
             for i in range(0, len(members), 5):
                 chunk = members[i:i+5]
-                await client.send_message(chat_id, " ".join(chunk))
+                chunk_msg = " ".join(chunk)
+                await client.send_message(chat_id, chunk_msg)
                 await asyncio.sleep(1)
                 
         except Exception as e:
